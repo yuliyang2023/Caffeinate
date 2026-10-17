@@ -1,0 +1,34 @@
+name: Build macOS app
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build and package app
+        run: ./scripts/release.sh
+
+      - name: Verify app and archive
+        run: |
+          codesign --verify --deep --strict Caffeinate.app
+          plutil -lint Caffeinate.app/Contents/Info.plist
+          unzip -t Caffeinate.app.zip
+
+      - name: Upload app archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Caffeinate-macos-${{ runner.arch }}
+          path: Caffeinate.app.zip
+          if-no-files-found: error
+          retention-days: 14
