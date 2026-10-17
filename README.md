@@ -28,7 +28,9 @@ Optionally have Caffeinate turn itself off after a set time. Under **Auto-off af
 
 
 ## Requirements
-The app requires macOS 11 or later to run. The **Start at login** option (in the right-click menu) requires macOS 13 or later.
+The GitHub Actions and script builds require macOS 13 or later and support both
+Apple Silicon (`arm64`) and Intel (`x86_64`). The Xcode project targets macOS 11
+or later; **Start at login** requires macOS 13 or later.
 
 ## Installation
 
@@ -64,9 +66,13 @@ Add an entry to your `.chezmoiexternal.toml` to pull the app straight from the r
 ### GitHub Actions
 
 The **Build macOS app** workflow builds and verifies `Caffeinate.app.zip` on a
-macOS runner for every push and pull request. Download the archive from the
-workflow run's **Artifacts** section; it contains a build for the runner's native
-architecture, indicated in the artifact name, and is ad-hoc signed.
+macOS runner for every push and pull request. The runner uses macOS 15, while
+the compiled apps target macOS 13 or later. CI checks the minimum OS version in
+both the executable and `Info.plist`. Download the ad-hoc-signed archive for
+your Mac from the workflow run's **Artifacts** section:
+
+- `Caffeinate-macos-13-arm64`: Apple Silicon
+- `Caffeinate-macos-13-x86_64`: Intel
 
 To trigger a build manually with GitHub CLI:
 

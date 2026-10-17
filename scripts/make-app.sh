@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SDK="$(xcrun --show-sdk-path)"
-ARCH="$(uname -m)"
+ARCH="${ARCH:-$(uname -m)}"
 BUILD=".build"
 APP="Caffeinate.app"
 
