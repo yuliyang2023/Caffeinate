@@ -34,6 +34,17 @@ or later; **Start at login** requires macOS 13 or later.
 
 ## Installation
 
+### Start at login with unsigned builds
+
+On macOS 13 or later, **Start at login** also works with unsigned and ad-hoc-signed
+script/Actions builds. These builds write a user LaunchAgent in
+`~/Library/LaunchAgents/com.Lennard.Caffeinate.startup.plist`; disabling the setting
+removes it. The app opens at the next login. No administrator password is needed.
+Install the app in `/Applications` or `~/Applications` before enabling the setting.
+If you move the app, turn the setting off and on to update its path. macOS may
+require approval under **System Settings → General → Login Items**. Builds with
+a signing team continue to use `SMAppService`.
+
 ### Download a release
 Download `Caffeinate.app.zip` from [releases](https://github.com/LennardKittner/Caffeinate/releases), unzip it, and move `Caffeinate.app` to `/Applications` (or `~/Applications`).
 

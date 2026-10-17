@@ -26,12 +26,15 @@ jobs:
       - name: Build and package app
         run: ./scripts/release.sh
 
+      - name: Test login registration
+        run: bash scripts/test-login-agent.sh
+
       - name: Verify app and archive
         run: |
           codesign --verify --deep --strict Caffeinate.app
           plutil -lint Caffeinate.app/Contents/Info.plist
           test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Caffeinate.app/Contents/Info.plist)" = "13.0"
-          lipo -verify_arch "$ARCH" Caffeinate.app/Contents/MacOS/Caffeinate
+          lipo Caffeinate.app/Contents/MacOS/Caffeinate -verify_arch "$ARCH"
           xcrun vtool -show-build Caffeinate.app/Contents/MacOS/Caffeinate | grep -E 'minos 13\.0(\.0)?$'
           unzip -t Caffeinate.app.zip
 

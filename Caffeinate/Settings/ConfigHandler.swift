@@ -9,6 +9,35 @@ import Foundation
 import Combine
 import ServiceManagement
 import AppKit
+import Security
+
+/// Unsigned builds cannot rely on SMAppService's signing identity. A user
+/// LaunchAgent opens the app once at the next login, without root privileges.
+struct LoginLaunchAgent {
+    let directory: URL
+    let appURL: URL
+    let label: String
+
+    var url: URL { directory.appendingPathComponent(label + ".plist") }
+
+    var isEnabled: Bool { FileManager.default.fileExists(atPath: url.path) }
+
+    func setEnabled(_ enabled: Bool) throws {
+        if enabled {
+            let plist: [String: Any] = [
+                "Label": label,
+                "ProgramArguments": ["/usr/bin/open", "-g", appURL.path],
+                "RunAtLoad": true
+            ]
+            let data = try PropertyListSerialization.data(fromPropertyList: plist,
+                                                          format: .xml, options: 0)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+        } else if isEnabled {
+            try FileManager.default.removeItem(at: url)
+        }
+    }
+}
 
 class ConfigHandler :ObservableObject {
     
@@ -19,6 +48,27 @@ class ConfigHandler :ObservableObject {
     var macOS13 :Bool
     private var oldConf :ConfigData! // necessary because removeDuplicates(by: ) does not work
     private var configSink :Cancellable!
+
+    private var loginAgent: LoginLaunchAgent {
+        LoginLaunchAgent(
+            directory: FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/LaunchAgents", isDirectory: true),
+            appURL: Bundle.main.bundleURL,
+            label: (Bundle.main.bundleIdentifier ?? "com.Lennard.Caffeinate") + ".startup")
+    }
+
+    private var hasSigningTeam: Bool {
+        var code: SecCode?
+        var staticCode: SecStaticCode?
+        var information: CFDictionary?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code = code,
+              SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess,
+              let staticCode = staticCode,
+              SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation),
+                                            &information) == errSecSuccess,
+              let values = information as? [String: Any] else { return false }
+        return values[kSecCodeInfoTeamIdentifier as String] as? String != nil
+    }
     
     init() {
         if #available(macOS 13.0, *) {
@@ -41,7 +91,7 @@ class ConfigHandler :ObservableObject {
     
     private func updateAtLogin() {
         if #available(macOS 13.0, *) {
-            conf.atLogin = SMAppService.mainApp.status == .enabled
+            conf.atLogin = loginAgent.isEnabled || SMAppService.mainApp.status == .enabled
         }
     }
 
@@ -69,6 +119,24 @@ class ConfigHandler :ObservableObject {
         guard #available(macOS 13.0, *) else {
             mutateConfig { $0.atLogin = false }
             return .unsupported
+        }
+        // Keep using an existing LaunchAgent even if a later build is signed,
+        // so toggling the setting always removes the registration it created.
+        if !hasSigningTeam || loginAgent.isEnabled {
+            do {
+                // Remove any old SMAppService registration to avoid duplicates.
+                if SMAppService.mainApp.status == .enabled ||
+                    SMAppService.mainApp.status == .requiresApproval {
+                    try SMAppService.mainApp.unregister()
+                }
+                try loginAgent.setEnabled(desired)
+                mutateConfig { $0.atLogin = loginAgent.isEnabled }
+                return .ok(enabled: conf.atLogin)
+            } catch {
+                let enabled = loginAgent.isEnabled || SMAppService.mainApp.status == .enabled
+                mutateConfig { $0.atLogin = enabled }
+                return .failed(error)
+            }
         }
         var caughtError: Error?
         do {
